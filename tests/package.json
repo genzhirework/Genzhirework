@@ -1,0 +1,14 @@
+{
+  "name": "genzhire-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "api": "node api-e2e.mjs",
+    "ui": "node ui-e2e.mjs",
+    "serve-dist": "node serve-dist.mjs"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1",
+    "playwright": "^1.49.0"
+  }
+}

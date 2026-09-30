@@ -1,0 +1,1344 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["relationJoins"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model abuse_reports {
+  id                                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporter_id                            String?  @db.Uuid
+  target_type                            String
+  target_id                              String   @db.Uuid
+  reason                                 String
+  details                                String?
+  status                                 String   @default("OPEN")
+  handled_by                             String?  @db.Uuid
+  resolution                             String?
+  created_at                             DateTime @default(now()) @db.Timestamptz(6)
+  users_abuse_reports_handled_byTousers  users?   @relation("abuse_reports_handled_byTousers", fields: [handled_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_abuse_reports_reporter_idTousers users?   @relation("abuse_reports_reporter_idTousers", fields: [reporter_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
+model analytics_events {
+  id           BigInt   @default(autoincrement())
+  occurred_at  DateTime @db.Timestamptz(6)
+  user_id      String?  @db.Uuid
+  anonymous_id String?
+  app          String
+  event_name   String
+  properties   Json     @default("{}")
+
+  @@id([id, occurred_at])
+}
+
+model application_status_history {
+  id             BigInt       @id @default(autoincrement())
+  application_id String       @db.Uuid
+  from_status    String?
+  to_status      String
+  changed_by     String?      @db.Uuid
+  note           String?
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  applications   applications @relation(fields: [application_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users          users?       @relation(fields: [changed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([application_id, created_at], map: "application_status_history_app_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model applications {
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  job_id                     String                       @db.Uuid
+  employer_id                String                       @db.Uuid
+  candidate_id               String                       @db.Uuid
+  resume_id                  String?                      @db.Uuid
+  resume_file_id             String                       @db.Uuid
+  cover_note                 String?
+  profile_snapshot           Json
+  source                     String                       @default("DIRECT")
+  status                     String                       @default("APPLIED")
+  match_score                Int?                         @db.SmallInt
+  applied_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  status_changed_at          DateTime                     @default(now()) @db.Timestamptz(6)
+  application_status_history application_status_history[]
+  candidates                 candidates                   @relation(fields: [candidate_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employers                  employers                    @relation(fields: [employer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  jobs                       jobs                         @relation(fields: [job_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  files                      files                        @relation(fields: [resume_file_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  resumes                    resumes?                     @relation(fields: [resume_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  interviews                 interviews[]
+
+  @@unique([job_id, candidate_id])
+  @@index([candidate_id, applied_at(sort: Desc)], map: "applications_candidate_idx")
+  @@index([employer_id, applied_at(sort: Desc)], map: "applications_employer_idx")
+  @@index([job_id, status, applied_at(sort: Desc)], map: "applications_job_status_idx")
+}
+
+/// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
+model audit_logs {
+  id          BigInt   @default(autoincrement())
+  actor_id    String?  @db.Uuid
+  actor_role  String?
+  actor_app   String?
+  action      String
+  entity_type String
+  entity_id   String
+  employer_id String?  @db.Uuid
+  metadata    Json     @default("{}")
+  ip_address  String?  @db.Inet
+  user_agent  String?
+  request_id  String?
+  prev_hash   Bytes?
+  hash        Bytes
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([id, created_at])
+  @@index([action, created_at(sort: Desc)], map: "audit_logs_action_idx")
+  @@index([actor_id, created_at(sort: Desc)], map: "audit_logs_actor_idx")
+  @@index([entity_type, entity_id, created_at(sort: Desc)], map: "audit_logs_entity_idx")
+}
+
+model candidate_blocked_employers {
+  candidate_id String     @db.Uuid
+  employer_id  String     @db.Uuid
+  created_at   DateTime   @default(now()) @db.Timestamptz(6)
+  candidates   candidates @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  employers    employers  @relation(fields: [employer_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "candidate_blocked_employers_employer_fk")
+
+  @@id([candidate_id, employer_id])
+}
+
+model candidate_certifications {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id   String     @db.Uuid
+  name           String
+  issuer         String
+  issue_date     DateTime?  @db.Date
+  expiry_date    DateTime?  @db.Date
+  credential_id  String?
+  credential_url String?
+  file_id        String?    @db.Uuid
+  candidates     candidates @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  files          files?     @relation(fields: [file_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model candidate_consents {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id       String           @db.Uuid
+  purpose            String
+  granted            Boolean
+  policy_document_id String           @db.Uuid
+  source             String
+  ip_address         String?          @db.Inet
+  user_agent         String?
+  created_at         DateTime         @default(now()) @db.Timestamptz(6)
+  candidates         candidates       @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  policy_documents   policy_documents @relation(fields: [policy_document_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([candidate_id, purpose, created_at(sort: Desc)], map: "candidate_consents_lookup_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model candidate_education {
+  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id     String     @db.Uuid
+  level            String
+  degree           String?
+  specialization   String?
+  institution      String
+  university_board String?
+  start_year       Int?       @db.SmallInt
+  graduation_year  Int?       @db.SmallInt
+  is_pursuing      Boolean    @default(false)
+  score_type       String?
+  score            Decimal?   @db.Decimal(5, 2)
+  sort_order       Int        @default(0) @db.SmallInt
+  candidates       candidates @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([candidate_id], map: "candidate_education_candidate_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model candidate_experience {
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id    String     @db.Uuid
+  company_name    String
+  title           String
+  employment_type String
+  location        String?
+  start_date      DateTime   @db.Date
+  end_date        DateTime?  @db.Date
+  is_current      Boolean    @default(false)
+  description     String?
+  candidates      candidates @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([candidate_id], map: "candidate_experience_candidate_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model candidate_folders {
+  id                    String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id           String               @db.Uuid
+  name                  String
+  kind                  String               @default("CUSTOM")
+  job_id                String?              @db.Uuid
+  hiring_requirement_id String?              @db.Uuid
+  created_by            String               @db.Uuid
+  created_at            DateTime             @default(now()) @db.Timestamptz(6)
+  users                 users                @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employers             employers            @relation(fields: [employer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  jobs                  jobs?                @relation(fields: [job_id], references: [id], onUpdate: NoAction)
+  hiring_requirements   hiring_requirements? @relation(fields: [hiring_requirement_id], references: [id], onUpdate: NoAction, map: "candidate_folders_req_fk")
+  saved_candidates      saved_candidates[]
+
+  @@unique([employer_id, name])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model candidate_joinings {
+  id                                                          String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recruitment_candidate_id                                    String                 @unique @db.Uuid
+  offer_id                                                    String                 @db.Uuid
+  joining_date                                                DateTime               @db.Date
+  annual_ctc_paise                                            BigInt
+  recruiter_confirmed_by                                      String?                @db.Uuid
+  recruiter_confirmed_at                                      DateTime?              @db.Timestamptz(6)
+  employer_confirmed_by                                       String?                @db.Uuid
+  employer_confirmed_at                                       DateTime?              @db.Timestamptz(6)
+  payment_trigger_days                                        Int                    @db.SmallInt
+  billing_due_date                                            DateTime?              @default(dbgenerated("(joining_date + (payment_trigger_days)::integer)")) @db.Date
+  tracking_status                                             String                 @default("AWAITING_CONFIRMATION")
+  left_on                                                     DateTime?              @db.Date
+  left_reason                                                 String?
+  created_at                                                  DateTime               @default(now()) @db.Timestamptz(6)
+  still_employed_confirmed_at                                 DateTime?              @db.Timestamptz(6)
+  still_employed_confirmed_by                                 String?                @db.Uuid
+  users_candidate_joinings_employer_confirmed_byTousers       users?                 @relation("candidate_joinings_employer_confirmed_byTousers", fields: [employer_confirmed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  offers                                                      offers                 @relation(fields: [offer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_candidate_joinings_recruiter_confirmed_byTousers      users?                 @relation("candidate_joinings_recruiter_confirmed_byTousers", fields: [recruiter_confirmed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  recruitment_candidates                                      recruitment_candidates @relation(fields: [recruitment_candidate_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_candidate_joinings_still_employed_confirmed_byTousers users?                 @relation("candidate_joinings_still_employed_confirmed_byTousers", fields: [still_employed_confirmed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  consultant_billing                                          consultant_billing?
+  joining_reminders                                           joining_reminders[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model candidate_notes {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id  String     @db.Uuid
+  candidate_id String     @db.Uuid
+  author_id    String     @db.Uuid
+  body         String
+  created_at   DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime   @default(now()) @db.Timestamptz(6)
+  users        users      @relation(fields: [author_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidates   candidates @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  employers    employers  @relation(fields: [employer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([employer_id, candidate_id, created_at(sort: Desc)], map: "candidate_notes_idx")
+}
+
+/// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model candidate_profile_views {
+  id               BigInt     @default(autoincrement())
+  viewer_user_id   String     @db.Uuid
+  viewer_type      String
+  employer_id      String?    @db.Uuid
+  candidate_id     String     @db.Uuid
+  action           String
+  access_basis     String
+  credits_consumed Int        @default(0) @db.SmallInt
+  ledger_id        BigInt?
+  ip_address       String?    @db.Inet
+  user_agent       String?
+  request_id       String?
+  created_at       DateTime   @default(now()) @db.Timestamptz(6)
+  candidates       candidates @relation(fields: [candidate_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employers        employers? @relation(fields: [employer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users            users      @relation(fields: [viewer_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([id, created_at])
+  @@index([candidate_id, created_at(sort: Desc)], map: "candidate_profile_views_candidate_idx")
+  @@index([employer_id, created_at(sort: Desc)], map: "candidate_profile_views_employer_idx")
+  @@index([viewer_user_id, created_at(sort: Desc)], map: "candidate_profile_views_viewer_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model candidate_profiles {
+  candidate_id               String     @id @db.Uuid
+  headline                   String?
+  summary                    String?
+  target_role                String?
+  current_job_title          String?
+  employment_status          String?
+  total_experience_months    Int        @default(0) @db.SmallInt
+  expected_ctc_min_paise     BigInt?
+  expected_ctc_max_paise     BigInt?
+  availability               String?
+  available_from             DateTime?  @db.Date
+  preferred_work_modes       String[]   @default([])
+  preferred_cities           String[]   @default([])
+  preferred_employment_types String[]   @default([])
+  preferred_industries       String[]   @default([])
+  links                      Json       @default("[]")
+  photo_file_id              String?    @db.Uuid
+  profile_completion         Int        @default(0) @db.SmallInt
+  last_active_at             DateTime?  @db.Timestamptz(6)
+  updated_at                 DateTime   @default(now()) @db.Timestamptz(6)
+  candidates                 candidates @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  files                      files?     @relation(fields: [photo_file_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model candidate_projects {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id String     @db.Uuid
+  title        String
+  description  String?
+  role         String?
+  skill_ids    Int[]      @default([])
+  project_url  String?
+  repo_url     String?
+  start_date   DateTime?  @db.Date
+  end_date     DateTime?  @db.Date
+  sort_order   Int        @default(0) @db.SmallInt
+  candidates   candidates @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model candidate_search_documents {
+  candidate_id            String                  @id @db.Uuid
+  visibility_level        String
+  is_searchable           Boolean
+  display_name_masked     String
+  headline                String?
+  target_role             String?
+  current_job_title       String?
+  city                    String?
+  state                   String?
+  highest_education_level String?
+  highest_degree          String?
+  specializations         String[]                @default([])
+  graduation_year         Int?                    @db.SmallInt
+  experience_months       Int                     @default(0) @db.SmallInt
+  expected_ctc_min_paise  BigInt?
+  availability            String?
+  employment_status       String?
+  work_modes              String[]                @default([])
+  preferred_cities        String[]                @default([])
+  industries              String[]                @default([])
+  skill_ids               Int[]                   @default([])
+  skill_names             String[]                @default([])
+  certification_names     String[]                @default([])
+  profile_completion      Int                     @db.SmallInt
+  email_verified          Boolean
+  phone_verified          Boolean
+  last_active_at          DateTime?               @db.Timestamptz(6)
+  search_vector           Unsupported("tsvector")
+  updated_at              DateTime                @default(now()) @db.Timestamptz(6)
+  candidates              candidates              @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model candidate_skills {
+  candidate_id String     @db.Uuid
+  skill_id     Int
+  proficiency  String?
+  sort_order   Int        @default(0) @db.SmallInt
+  candidates   candidates @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  skills       skills     @relation(fields: [skill_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([candidate_id, skill_id])
+  @@index([skill_id], map: "candidate_skills_skill_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model candidate_visibility {
+  candidate_id String     @id @db.Uuid
+  level        String     @default("EMPLOYER_VISIBLE")
+  public_slug  String?    @unique
+  open_to_work Boolean    @default(true)
+  updated_at   DateTime   @default(now()) @db.Timestamptz(6)
+  candidates   candidates @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model candidates {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                     String                        @unique @db.Uuid
+  first_name                  String
+  last_name                   String
+  contact_email               String?                       @db.Citext
+  contact_phone_e164          String?
+  city                        String?
+  state                       String?
+  country_code                String                        @default("IN") @db.Char(2)
+  age_confirmed_at            DateTime                      @db.Timestamptz(6)
+  onboarding_completed_at     DateTime?                     @db.Timestamptz(6)
+  is_honeytoken               Boolean                       @default(false)
+  created_at                  DateTime                      @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime                      @default(now()) @db.Timestamptz(6)
+  deleted_at                  DateTime?                     @db.Timestamptz(6)
+  applications                applications[]
+  candidate_blocked_employers candidate_blocked_employers[]
+  candidate_certifications    candidate_certifications[]
+  candidate_consents          candidate_consents[]
+  candidate_education         candidate_education[]
+  candidate_experience        candidate_experience[]
+  candidate_notes             candidate_notes[]
+  candidate_profile_views     candidate_profile_views[]
+  candidate_profiles          candidate_profiles?
+  candidate_projects          candidate_projects[]
+  candidate_search_documents  candidate_search_documents?
+  candidate_skills            candidate_skills[]
+  candidate_visibility        candidate_visibility?
+  users                       users                         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  contact_requests            contact_requests[]
+  profile_unlocks             profile_unlocks[]
+  recruitment_candidates      recruitment_candidates[]
+  resumes                     resumes[]
+  saved_candidates            saved_candidates[]
+  saved_jobs                  saved_jobs[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model companies {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id         String                @db.Uuid
+  legal_name          String
+  display_name        String
+  slug                String                @unique
+  website             String?
+  industry            String?
+  size_band           String?
+  founded_year        Int?                  @db.SmallInt
+  description         String?
+  logo_file_id        String?               @db.Uuid
+  hq_city             String?
+  hq_state            String?
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime              @default(now()) @db.Timestamptz(6)
+  employers           employers             @relation(fields: [employer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  files               files?                @relation(fields: [logo_file_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  hiring_requirements hiring_requirements[]
+  jobs                jobs[]
+
+  @@index([employer_id], map: "companies_employer_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model consultant_billing {
+  id                     String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  joining_id             String                 @unique @db.Uuid
+  employer_id            String                 @db.Uuid
+  agreement_id           String                 @db.Uuid
+  annual_ctc_paise       BigInt
+  fee_percentage         Decimal                @db.Decimal(5, 2)
+  fee_amount_paise       BigInt
+  status                 String                 @default("PENDING_TRIGGER")
+  billable_at            DateTime?              @db.Timestamptz(6)
+  status_reason          String?
+  created_at             DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime               @default(now()) @db.Timestamptz(6)
+  recruitment_agreements recruitment_agreements @relation(fields: [agreement_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employers              employers              @relation(fields: [employer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  candidate_joinings     candidate_joinings     @relation(fields: [joining_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  invoice_lines          invoice_lines?
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model contact_requests {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id  String     @db.Uuid
+  candidate_id String     @db.Uuid
+  requested_by String     @db.Uuid
+  job_id       String?    @db.Uuid
+  message      String
+  status       String     @default("PENDING")
+  responded_at DateTime?  @db.Timestamptz(6)
+  expires_at   DateTime   @db.Timestamptz(6)
+  created_at   DateTime   @default(now()) @db.Timestamptz(6)
+  candidates   candidates @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  employers    employers  @relation(fields: [employer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  jobs         jobs?      @relation(fields: [job_id], references: [id], onUpdate: NoAction)
+  users        users      @relation(fields: [requested_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model data_subject_requests {
+  id                                            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                                       String    @db.Uuid
+  type                                          String
+  status                                        String    @default("RECEIVED")
+  details                                       String?
+  due_by                                        DateTime  @db.Date
+  completed_at                                  DateTime? @db.Timestamptz(6)
+  handled_by                                    String?   @db.Uuid
+  created_at                                    DateTime  @default(now()) @db.Timestamptz(6)
+  users_data_subject_requests_handled_byTousers users?    @relation("data_subject_requests_handled_byTousers", fields: [handled_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_data_subject_requests_user_idTousers    users     @relation("data_subject_requests_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model employer_entitlements {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id        String               @db.Uuid
+  entitlement_type   String
+  source             String
+  total_quantity     Int
+  used_quantity      Int                  @default(0)
+  remaining_quantity Int?                 @default(dbgenerated("(total_quantity - used_quantity)"))
+  valid_from         DateTime             @default(now()) @db.Timestamptz(6)
+  valid_until        DateTime             @db.Timestamptz(6)
+  subscription_id    String?              @db.Uuid
+  granted_by         String?              @db.Uuid
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  employers          employers            @relation(fields: [employer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users              users?               @relation(fields: [granted_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subscriptions      subscriptions?       @relation(fields: [subscription_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  entitlement_ledger entitlement_ledger[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model employer_users {
+  id                                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id                            String    @db.Uuid
+  user_id                                String    @db.Uuid
+  company_role                           String
+  designation                            String?
+  status                                 String    @default("ACTIVE")
+  invited_by                             String?   @db.Uuid
+  created_at                             DateTime  @default(now()) @db.Timestamptz(6)
+  employers                              employers @relation(fields: [employer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_employer_users_invited_byTousers users?    @relation("employer_users_invited_byTousers", fields: [invited_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_employer_users_user_idTousers    users     @relation("employer_users_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([employer_id, user_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model employer_verification {
+  id                                              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id                                     String    @db.Uuid
+  submitted_by                                    String    @db.Uuid
+  official_email                                  String?   @db.Citext
+  official_email_verified_at                      DateTime? @db.Timestamptz(6)
+  website                                         String?
+  registration_type                               String?
+  registration_number                             String?
+  document_file_ids                               String[]  @default([]) @db.Uuid
+  contact_name                                    String
+  contact_phone_e164                              String
+  status                                          String    @default("SUBMITTED")
+  reviewer_id                                     String?   @db.Uuid
+  reviewer_notes                                  String?
+  decision_reason                                 String?
+  decided_at                                      DateTime? @db.Timestamptz(6)
+  created_at                                      DateTime  @default(now()) @db.Timestamptz(6)
+  employers                                       employers @relation(fields: [employer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_employer_verification_reviewer_idTousers  users?    @relation("employer_verification_reviewer_idTousers", fields: [reviewer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_employer_verification_submitted_byTousers users     @relation("employer_verification_submitted_byTousers", fields: [submitted_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model employers {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                        String
+  status                      String                        @default("ACTIVE")
+  verification_status         String                        @default("PENDING")
+  verified_at                 DateTime?                     @db.Timestamptz(6)
+  primary_domain              String?                       @db.Citext
+  account_type                String                        @default("DIRECT")
+  risk_score                  Int                           @default(0) @db.SmallInt
+  created_by_user_id          String?                       @db.Uuid
+  created_at                  DateTime                      @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime                      @default(now()) @db.Timestamptz(6)
+  applications                applications[]
+  candidate_blocked_employers candidate_blocked_employers[]
+  candidate_folders           candidate_folders[]
+  candidate_notes             candidate_notes[]
+  candidate_profile_views     candidate_profile_views[]
+  companies                   companies[]
+  consultant_billing          consultant_billing[]
+  contact_requests            contact_requests[]
+  employer_entitlements       employer_entitlements[]
+  employer_users              employer_users[]
+  employer_verification       employer_verification[]
+  users                       users?                        @relation(fields: [created_by_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  entitlement_ledger          entitlement_ledger[]
+  hiring_requirements         hiring_requirements[]
+  invoices                    invoices[]
+  jobs                        jobs[]
+  profile_unlocks             profile_unlocks[]
+  recruitment_agreements      recruitment_agreements[]
+  recruitment_cases           recruitment_cases[]
+  saved_candidates            saved_candidates[]
+  security_alerts             security_alerts[]
+  subscriptions               subscriptions[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model entitlement_ledger {
+  id                    BigInt                @id @default(autoincrement())
+  entitlement_id        String                @db.Uuid
+  employer_id           String                @db.Uuid
+  delta                 Int
+  reason                String
+  reference_type        String?
+  reference_id          String?               @db.Uuid
+  actor_user_id         String?               @db.Uuid
+  note                  String?
+  created_at            DateTime              @default(now()) @db.Timestamptz(6)
+  users                 users?                @relation(fields: [actor_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employers             employers             @relation(fields: [employer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employer_entitlements employer_entitlements @relation(fields: [entitlement_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  profile_unlocks       profile_unlocks[]
+
+  @@index([employer_id, created_at(sort: Desc)], map: "entitlement_ledger_employer_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model files {
+  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_user_id            String?                    @db.Uuid
+  purpose                  String
+  bucket                   String
+  storage_key              String
+  original_name            String
+  mime_type                String
+  size_bytes               BigInt
+  sha256                   Bytes?
+  scan_status              String                     @default("PENDING")
+  scanned_at               DateTime?                  @db.Timestamptz(6)
+  created_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  deleted_at               DateTime?                  @db.Timestamptz(6)
+  applications             applications[]
+  candidate_certifications candidate_certifications[]
+  candidate_profiles       candidate_profiles[]
+  companies                companies[]
+  users                    users?                     @relation(fields: [owner_user_id], references: [id], onUpdate: NoAction)
+  invoices                 invoices[]
+  offers                   offers[]
+  recruitment_agreements   recruitment_agreements[]
+  resumes                  resumes[]
+
+  @@unique([bucket, storage_key])
+}
+
+model hiring_requirement_skills {
+  hiring_requirement_id String              @db.Uuid
+  skill_id              Int
+  is_mandatory          Boolean             @default(true)
+  hiring_requirements   hiring_requirements @relation(fields: [hiring_requirement_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  skills                skills              @relation(fields: [skill_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([hiring_requirement_id, skill_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model hiring_requirements {
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id               String                      @db.Uuid
+  company_id                String                      @db.Uuid
+  created_by                String                      @db.Uuid
+  role_title                String
+  openings                  Int                         @db.SmallInt
+  qualification             String?
+  min_education_level       String?
+  experience_min_months     Int                         @default(0) @db.SmallInt
+  experience_max_months     Int?                        @db.SmallInt
+  locations                 String[]                    @default([])
+  work_mode                 String
+  ctc_min_paise             BigInt?
+  ctc_max_paise             BigInt?
+  joining_timeline          String
+  fulfilment_mode           String
+  notes                     String?
+  status                    String                      @default("SUBMITTED")
+  created_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  candidate_folders         candidate_folders[]
+  hiring_requirement_skills hiring_requirement_skills[]
+  companies                 companies                   @relation(fields: [company_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users                     users                       @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employers                 employers                   @relation(fields: [employer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  recruitment_cases         recruitment_cases?
+
+  @@index([employer_id, status], map: "hiring_requirements_employer_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model interviews {
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recruitment_candidate_id String?                 @db.Uuid
+  application_id           String?                 @db.Uuid
+  round_no                 Int                     @default(1) @db.SmallInt
+  round_name               String
+  mode                     String
+  scheduled_start          DateTime                @db.Timestamptz(6)
+  scheduled_end            DateTime                @db.Timestamptz(6)
+  location_or_link         String?
+  interviewer_names        String?
+  status                   String                  @default("SCHEDULED")
+  outcome                  String                  @default("PENDING")
+  feedback                 String?
+  created_by               String                  @db.Uuid
+  created_at               DateTime                @default(now()) @db.Timestamptz(6)
+  applications             applications?           @relation(fields: [application_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users                    users                   @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  recruitment_candidates   recruitment_candidates? @relation(fields: [recruitment_candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model invoice_lines {
+  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_id            String              @db.Uuid
+  consultant_billing_id String?             @unique @db.Uuid
+  description           String
+  sac_code              String?
+  amount_paise          BigInt
+  consultant_billing    consultant_billing? @relation(fields: [consultant_billing_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  invoices              invoices            @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model invoice_number_sequences {
+  financial_year String @id
+  last_value     Int    @default(0)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model invoices {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_number    String?         @unique
+  employer_id       String          @db.Uuid
+  buyer_legal_name  String
+  buyer_gstin       String?
+  buyer_address     String
+  place_of_supply   String
+  subtotal_paise    BigInt
+  tax_rate          Decimal         @db.Decimal(5, 2)
+  cgst_paise        BigInt          @default(0)
+  sgst_paise        BigInt          @default(0)
+  igst_paise        BigInt          @default(0)
+  total_paise       BigInt
+  amount_paid_paise BigInt          @default(0)
+  status            String          @default("DRAFT")
+  issued_at         DateTime?       @db.Timestamptz(6)
+  due_date          DateTime?       @db.Date
+  pdf_file_id       String?         @db.Uuid
+  created_by        String          @db.Uuid
+  created_at        DateTime        @default(now()) @db.Timestamptz(6)
+  invoice_lines     invoice_lines[]
+  users             users           @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employers         employers       @relation(fields: [employer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  files             files?          @relation(fields: [pdf_file_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payments          payments[]
+}
+
+model job_locations {
+  job_id String @db.Uuid
+  city   String
+  state  String
+  jobs   jobs   @relation(fields: [job_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([job_id, city, state])
+  @@index([city])
+}
+
+model job_skills {
+  job_id       String  @db.Uuid
+  skill_id     Int
+  is_mandatory Boolean @default(true)
+  jobs         jobs    @relation(fields: [job_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  skills       skills  @relation(fields: [skill_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([job_id, skill_id])
+  @@index([skill_id], map: "job_skills_skill_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model jobs {
+  id                                  String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id                         String                   @db.Uuid
+  company_id                          String                   @db.Uuid
+  posted_by_user_id                   String                   @db.Uuid
+  title                               String
+  slug                                String
+  department                          String?
+  description                         String
+  responsibilities                    String?
+  requirements                        String?
+  min_education_level                 String?
+  qualifications                      String[]                 @default([])
+  experience_min_months               Int                      @default(0) @db.SmallInt
+  experience_max_months               Int?                     @db.SmallInt
+  salary_min_paise                    BigInt?
+  salary_max_paise                    BigInt?
+  salary_period                       String                   @default("ANNUAL")
+  salary_visible                      Boolean                  @default(true)
+  work_mode                           String
+  employment_type                     String
+  openings                            Int                      @default(1) @db.SmallInt
+  application_deadline                DateTime?                @db.Date
+  status                              String                   @default("DRAFT")
+  moderation_reason                   String?
+  moderated_by                        String?                  @db.Uuid
+  published_at                        DateTime?                @db.Timestamptz(6)
+  closed_at                           DateTime?                @db.Timestamptz(6)
+  search_vector                       Unsupported("tsvector")? @default(dbgenerated("(((setweight(to_tsvector('english'::regconfig, COALESCE(title, ''::text)), 'A'::\"char\") || setweight(to_tsvector('english'::regconfig, COALESCE(department, ''::text)), 'B'::\"char\")) || setweight(to_tsvector('english'::regconfig, COALESCE(requirements, ''::text)), 'C'::\"char\")) || setweight(to_tsvector('english'::regconfig, COALESCE(description, ''::text)), 'D'::\"char\"))"))
+  created_at                          DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at                          DateTime                 @default(now()) @db.Timestamptz(6)
+  applications                        applications[]
+  candidate_folders                   candidate_folders[]
+  contact_requests                    contact_requests[]
+  job_locations                       job_locations[]
+  job_skills                          job_skills[]
+  companies                           companies                @relation(fields: [company_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employers                           employers                @relation(fields: [employer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_jobs_moderated_byTousers      users?                   @relation("jobs_moderated_byTousers", fields: [moderated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_jobs_posted_by_user_idTousers users                    @relation("jobs_posted_by_user_idTousers", fields: [posted_by_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  saved_jobs                          saved_jobs[]
+
+  @@index([employer_id, status], map: "jobs_employer_idx")
+  @@index([search_vector], map: "jobs_search_idx", type: Gin)
+  @@index([title(ops: raw("gin_trgm_ops"))], map: "jobs_title_trgm_idx", type: Gin)
+}
+
+model joining_reminders {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  joining_id         String             @db.Uuid
+  day_offset         Int                @db.SmallInt
+  due_on             DateTime           @db.Date
+  sent_at            DateTime?          @db.Timestamptz(6)
+  candidate_joinings candidate_joinings @relation(fields: [joining_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([joining_id, day_offset])
+}
+
+model login_history {
+  id              BigInt   @id @default(autoincrement())
+  user_id         String?  @db.Uuid
+  email_attempted String   @db.Citext
+  app             String
+  success         Boolean
+  failure_reason  String?
+  ip_address      String?  @db.Inet
+  user_agent      String?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  users           users?   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([ip_address, created_at(sort: Desc)], map: "login_history_ip_idx")
+  @@index([user_id, created_at(sort: Desc)], map: "login_history_user_idx")
+}
+
+model mfa_recovery_codes {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id   String    @db.Uuid
+  code_hash Bytes
+  used_at   DateTime? @db.Timestamptz(6)
+  users     users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model notification_deliveries {
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  notification_id     String        @db.Uuid
+  channel             String
+  status              String        @default("QUEUED")
+  provider_message_id String?
+  attempts            Int           @default(0) @db.SmallInt
+  last_error          String?
+  sent_at             DateTime?     @db.Timestamptz(6)
+  notifications       notifications @relation(fields: [notification_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model notification_preferences {
+  user_id String  @db.Uuid
+  type    String
+  channel String
+  enabled Boolean
+  users   users   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, type, channel])
+}
+
+model notifications {
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                 String                    @db.Uuid
+  app                     String
+  type                    String
+  title                   String
+  body                    String
+  link                    String?
+  data                    Json                      @default("{}")
+  read_at                 DateTime?                 @db.Timestamptz(6)
+  created_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  notification_deliveries notification_deliveries[]
+  users                   users                     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, app, created_at(sort: Desc)], map: "notifications_inbox_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model offers {
+  id                       String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recruitment_candidate_id String                 @db.Uuid
+  designation              String
+  annual_ctc_paise         BigInt
+  offer_date               DateTime               @db.Date
+  expected_joining_date    DateTime               @db.Date
+  status                   String                 @default("EXTENDED")
+  offer_letter_file_id     String?                @db.Uuid
+  created_by               String                 @db.Uuid
+  created_at               DateTime               @default(now()) @db.Timestamptz(6)
+  candidate_joinings       candidate_joinings[]
+  users                    users                  @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  files                    files?                 @relation(fields: [offer_letter_file_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  recruitment_candidates   recruitment_candidates @relation(fields: [recruitment_candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model outbox_events {
+  id             BigInt    @id @default(autoincrement())
+  aggregate_type String
+  aggregate_id   String
+  event_type     String
+  payload        Json
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  published_at   DateTime? @db.Timestamptz(6)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model payments {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoice_id   String   @db.Uuid
+  amount_paise BigInt
+  tds_paise    BigInt   @default(0)
+  method       String
+  reference    String
+  received_on  DateTime @db.Date
+  recorded_by  String   @db.Uuid
+  status       String   @default("CONFIRMED")
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  invoices     invoices @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users        users    @relation(fields: [recorded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model permissions {
+  id               Int                @id @default(autoincrement()) @db.SmallInt
+  code             String             @unique
+  description      String
+  role_permissions role_permissions[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model pipeline_stages {
+  id                                                                                 Int                         @id @default(autoincrement()) @db.SmallInt
+  code                                                                               String                      @unique
+  label                                                                              String
+  semantic                                                                           String
+  sort_order                                                                         Int                         @db.SmallInt
+  is_terminal                                                                        Boolean                     @default(false)
+  is_active                                                                          Boolean                     @default(true)
+  is_system                                                                          Boolean                     @default(true)
+  recruitment_candidates                                                             recruitment_candidates[]
+  recruitment_stage_history_recruitment_stage_history_from_stage_idTopipeline_stages recruitment_stage_history[] @relation("recruitment_stage_history_from_stage_idTopipeline_stages")
+  recruitment_stage_history_recruitment_stage_history_to_stage_idTopipeline_stages   recruitment_stage_history[] @relation("recruitment_stage_history_to_stage_idTopipeline_stages")
+}
+
+model policy_acceptances {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id            String           @db.Uuid
+  policy_document_id String           @db.Uuid
+  accepted_at        DateTime         @default(now()) @db.Timestamptz(6)
+  ip_address         String?          @db.Inet
+  user_agent         String?
+  policy_documents   policy_documents @relation(fields: [policy_document_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users              users            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model policy_documents {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type               String
+  version            String
+  content_url        String
+  published_at       DateTime             @db.Timestamptz(6)
+  candidate_consents candidate_consents[]
+  policy_acceptances policy_acceptances[]
+
+  @@unique([type, version])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model profile_unlocks {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id        String              @db.Uuid
+  candidate_id       String              @db.Uuid
+  unlock_type        String
+  unlocked_by        String              @db.Uuid
+  ledger_id          BigInt?
+  unlocked_at        DateTime            @default(now()) @db.Timestamptz(6)
+  expires_at         DateTime            @db.Timestamptz(6)
+  candidates         candidates          @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  employers          employers           @relation(fields: [employer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  entitlement_ledger entitlement_ledger? @relation(fields: [ledger_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users              users               @relation(fields: [unlocked_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([employer_id, candidate_id, unlock_type])
+  @@index([candidate_id, unlocked_at(sort: Desc)], map: "profile_unlocks_candidate_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model recruiters {
+  id                           String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                      String                         @unique @db.Uuid
+  employee_code                String?                        @unique
+  display_name                 String
+  designation                  String?
+  max_active_cases             Int                            @default(10) @db.SmallInt
+  status                       String                         @default("ACTIVE")
+  created_at                   DateTime                       @default(now()) @db.Timestamptz(6)
+  users                        users                          @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  recruitment_candidates       recruitment_candidates[]
+  recruitment_case_assignments recruitment_case_assignments[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model recruitment_agreements {
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id          String               @db.Uuid
+  reference_no         String               @unique
+  fee_percentage       Decimal              @db.Decimal(5, 2)
+  payment_trigger_days Int                  @db.SmallInt
+  payment_terms_days   Int                  @default(15) @db.SmallInt
+  replacement_terms    String?
+  valid_from           DateTime             @db.Date
+  valid_until          DateTime?            @db.Date
+  signed_file_id       String?              @db.Uuid
+  status               String               @default("DRAFT")
+  created_by           String               @db.Uuid
+  created_at           DateTime             @default(now()) @db.Timestamptz(6)
+  consultant_billing   consultant_billing[]
+  users                users                @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employers            employers            @relation(fields: [employer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  files                files?               @relation(fields: [signed_file_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  recruitment_cases    recruitment_cases[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model recruitment_candidates {
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id                   String                      @db.Uuid
+  candidate_id              String                      @db.Uuid
+  stage_id                  Int                         @db.SmallInt
+  sourced_by                String                      @db.Uuid
+  source                    String
+  screening_notes           String?
+  submitted_at              DateTime?                   @db.Timestamptz(6)
+  employer_decision         String?
+  employer_feedback         String?
+  drop_reason               String?
+  created_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  candidate_joinings        candidate_joinings?
+  interviews                interviews[]
+  offers                    offers[]
+  candidates                candidates                  @relation(fields: [candidate_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  recruitment_cases         recruitment_cases           @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  recruiters                recruiters                  @relation(fields: [sourced_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  pipeline_stages           pipeline_stages             @relation(fields: [stage_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  recruitment_stage_history recruitment_stage_history[]
+
+  @@unique([case_id, candidate_id])
+  @@index([candidate_id], map: "recruitment_candidates_candidate_idx")
+  @@index([case_id, stage_id], map: "recruitment_candidates_stage_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model recruitment_case_assignments {
+  case_id           String            @db.Uuid
+  recruiter_id      String            @db.Uuid
+  role              String            @default("OWNER")
+  assigned_by       String            @db.Uuid
+  assigned_at       DateTime          @default(now()) @db.Timestamptz(6)
+  unassigned_at     DateTime?         @db.Timestamptz(6)
+  users             users             @relation(fields: [assigned_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  recruitment_cases recruitment_cases @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  recruiters        recruiters        @relation(fields: [recruiter_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([case_id, recruiter_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model recruitment_cases {
+  id                           String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  hiring_requirement_id        String                         @unique @db.Uuid
+  employer_id                  String                         @db.Uuid
+  agreement_id                 String                         @db.Uuid
+  status                       String                         @default("OPEN")
+  opened_at                    DateTime                       @default(now()) @db.Timestamptz(6)
+  closed_at                    DateTime?                      @db.Timestamptz(6)
+  recruitment_candidates       recruitment_candidates[]
+  recruitment_case_assignments recruitment_case_assignments[]
+  recruitment_agreements       recruitment_agreements         @relation(fields: [agreement_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  employers                    employers                      @relation(fields: [employer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  hiring_requirements          hiring_requirements            @relation(fields: [hiring_requirement_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model recruitment_stage_history {
+  id                                                                       BigInt                 @id @default(autoincrement())
+  recruitment_candidate_id                                                 String                 @db.Uuid
+  from_stage_id                                                            Int?                   @db.SmallInt
+  to_stage_id                                                              Int                    @db.SmallInt
+  changed_by                                                               String?                @db.Uuid
+  note                                                                     String?
+  created_at                                                               DateTime               @default(now()) @db.Timestamptz(6)
+  users                                                                    users?                 @relation(fields: [changed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  pipeline_stages_recruitment_stage_history_from_stage_idTopipeline_stages pipeline_stages?       @relation("recruitment_stage_history_from_stage_idTopipeline_stages", fields: [from_stage_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  recruitment_candidates                                                   recruitment_candidates @relation(fields: [recruitment_candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  pipeline_stages_recruitment_stage_history_to_stage_idTopipeline_stages   pipeline_stages        @relation("recruitment_stage_history_to_stage_idTopipeline_stages", fields: [to_stage_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model resumes {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidate_id String         @db.Uuid
+  file_id      String         @db.Uuid
+  label        String         @default("Resume")
+  is_primary   Boolean        @default(false)
+  created_at   DateTime       @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime?      @db.Timestamptz(6)
+  applications applications[]
+  candidates   candidates     @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  files        files          @relation(fields: [file_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model role_permissions {
+  role_id       Int         @db.SmallInt
+  permission_id Int         @db.SmallInt
+  permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  roles         roles       @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([role_id, permission_id])
+}
+
+model roles {
+  id               Int                @id @default(autoincrement()) @db.SmallInt
+  code             String             @unique
+  name             String
+  description      String?
+  is_system        Boolean            @default(false)
+  requires_mfa     Boolean            @default(false)
+  role_permissions role_permissions[]
+  user_roles       user_roles[]
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model saved_candidates {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id       String             @db.Uuid
+  candidate_id      String             @db.Uuid
+  folder_id         String?            @db.Uuid
+  saved_by          String             @db.Uuid
+  created_at        DateTime           @default(now()) @db.Timestamptz(6)
+  candidates        candidates         @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  employers         employers          @relation(fields: [employer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  candidate_folders candidate_folders? @relation(fields: [folder_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users             users              @relation(fields: [saved_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model saved_jobs {
+  candidate_id String     @db.Uuid
+  job_id       String     @db.Uuid
+  created_at   DateTime   @default(now()) @db.Timestamptz(6)
+  candidates   candidates @relation(fields: [candidate_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  jobs         jobs       @relation(fields: [job_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([candidate_id, job_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model security_alerts {
+  id                                       String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type                                     String
+  severity                                 String
+  user_id                                  String?    @db.Uuid
+  employer_id                              String?    @db.Uuid
+  details                                  Json
+  auto_action                              String?
+  status                                   String     @default("OPEN")
+  resolved_by                              String?    @db.Uuid
+  created_at                               DateTime   @default(now()) @db.Timestamptz(6)
+  employers                                employers? @relation(fields: [employer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_security_alerts_resolved_byTousers users?     @relation("security_alerts_resolved_byTousers", fields: [resolved_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_security_alerts_user_idTousers     users?     @relation("security_alerts_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model sessions {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String    @db.Uuid
+  app                 String
+  refresh_token_hash  Bytes     @unique(map: "sessions_token_idx")
+  previous_token_hash Bytes?
+  mfa_verified_at     DateTime? @db.Timestamptz(6)
+  ip_address          String?   @db.Inet
+  user_agent          String?
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  last_used_at        DateTime  @default(now()) @db.Timestamptz(6)
+  expires_at          DateTime  @db.Timestamptz(6)
+  revoked_at          DateTime? @db.Timestamptz(6)
+  revoke_reason       String?
+  users               users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model skills {
+  id                        Int                         @id @default(autoincrement())
+  name                      String
+  slug                      String                      @unique
+  category                  String?
+  aliases                   String[]                    @default([])
+  merged_into               Int?
+  is_approved               Boolean                     @default(false)
+  created_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  candidate_skills          candidate_skills[]
+  hiring_requirement_skills hiring_requirement_skills[]
+  job_skills                job_skills[]
+  skills                    skills?                     @relation("skillsToskills", fields: [merged_into], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_skills              skills[]                    @relation("skillsToskills")
+
+  @@index([name(ops: raw("gin_trgm_ops"))], map: "skills_name_trgm_idx", type: Gin)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model subscriptions {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id           String                  @db.Uuid
+  plan_code             String
+  status                String
+  period_start          DateTime                @db.Date
+  period_end            DateTime                @db.Date
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  employer_entitlements employer_entitlements[]
+  employers             employers               @relation(fields: [employer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model system_settings {
+  key          String   @id
+  value        Json
+  schema       Json
+  description  String
+  is_sensitive Boolean  @default(false)
+  updated_by   String?  @db.Uuid
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+  users        users?   @relation(fields: [updated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model system_settings_history {
+  id         BigInt   @id @default(autoincrement())
+  key        String
+  old_value  Json?
+  new_value  Json
+  changed_by String   @db.Uuid
+  reason     String
+  changed_at DateTime @default(now()) @db.Timestamptz(6)
+  users      users    @relation(fields: [changed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model user_roles {
+  user_id                            String   @db.Uuid
+  role_id                            Int      @db.SmallInt
+  granted_by                         String?  @db.Uuid
+  granted_at                         DateTime @default(now()) @db.Timestamptz(6)
+  users_user_roles_granted_byTousers users?   @relation("user_roles_granted_byTousers", fields: [granted_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  roles                              roles    @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_user_roles_user_idTousers    users    @relation("user_roles_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, role_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model users {
+  id                                                                       String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                                                                    String                         @unique @db.Citext
+  full_name                                                                String?
+  email_verified_at                                                        DateTime?                      @db.Timestamptz(6)
+  phone_e164                                                               String?
+  phone_verified_at                                                        DateTime?                      @db.Timestamptz(6)
+  password_hash                                                            String?
+  status                                                                   String                         @default("PENDING_VERIFICATION")
+  status_reason                                                            String?
+  mfa_enabled                                                              Boolean                        @default(false)
+  mfa_secret_enc                                                           Bytes?
+  failed_login_count                                                       Int                            @default(0)
+  locked_until                                                             DateTime?                      @db.Timestamptz(6)
+  last_login_at                                                            DateTime?                      @db.Timestamptz(6)
+  created_at                                                               DateTime                       @default(now()) @db.Timestamptz(6)
+  updated_at                                                               DateTime                       @default(now()) @db.Timestamptz(6)
+  deleted_at                                                               DateTime?                      @db.Timestamptz(6)
+  abuse_reports_abuse_reports_handled_byTousers                            abuse_reports[]                @relation("abuse_reports_handled_byTousers")
+  abuse_reports_abuse_reports_reporter_idTousers                           abuse_reports[]                @relation("abuse_reports_reporter_idTousers")
+  application_status_history                                               application_status_history[]
+  candidate_folders                                                        candidate_folders[]
+  candidate_joinings_candidate_joinings_employer_confirmed_byTousers       candidate_joinings[]           @relation("candidate_joinings_employer_confirmed_byTousers")
+  candidate_joinings_candidate_joinings_recruiter_confirmed_byTousers      candidate_joinings[]           @relation("candidate_joinings_recruiter_confirmed_byTousers")
+  candidate_joinings_candidate_joinings_still_employed_confirmed_byTousers candidate_joinings[]           @relation("candidate_joinings_still_employed_confirmed_byTousers")
+  candidate_notes                                                          candidate_notes[]
+  candidate_profile_views                                                  candidate_profile_views[]
+  candidates                                                               candidates?
+  contact_requests                                                         contact_requests[]
+  data_subject_requests_data_subject_requests_handled_byTousers            data_subject_requests[]        @relation("data_subject_requests_handled_byTousers")
+  data_subject_requests_data_subject_requests_user_idTousers               data_subject_requests[]        @relation("data_subject_requests_user_idTousers")
+  employer_entitlements                                                    employer_entitlements[]
+  employer_users_employer_users_invited_byTousers                          employer_users[]               @relation("employer_users_invited_byTousers")
+  employer_users_employer_users_user_idTousers                             employer_users[]               @relation("employer_users_user_idTousers")
+  employer_verification_employer_verification_reviewer_idTousers           employer_verification[]        @relation("employer_verification_reviewer_idTousers")
+  employer_verification_employer_verification_submitted_byTousers          employer_verification[]        @relation("employer_verification_submitted_byTousers")
+  employers                                                                employers[]
+  entitlement_ledger                                                       entitlement_ledger[]
+  files                                                                    files[]
+  hiring_requirements                                                      hiring_requirements[]
+  interviews                                                               interviews[]
+  invoices                                                                 invoices[]
+  jobs_jobs_moderated_byTousers                                            jobs[]                         @relation("jobs_moderated_byTousers")
+  jobs_jobs_posted_by_user_idTousers                                       jobs[]                         @relation("jobs_posted_by_user_idTousers")
+  login_history                                                            login_history[]
+  mfa_recovery_codes                                                       mfa_recovery_codes[]
+  notification_preferences                                                 notification_preferences[]
+  notifications                                                            notifications[]
+  offers                                                                   offers[]
+  payments                                                                 payments[]
+  policy_acceptances                                                       policy_acceptances[]
+  profile_unlocks                                                          profile_unlocks[]
+  recruiters                                                               recruiters?
+  recruitment_agreements                                                   recruitment_agreements[]
+  recruitment_case_assignments                                             recruitment_case_assignments[]
+  recruitment_stage_history                                                recruitment_stage_history[]
+  saved_candidates                                                         saved_candidates[]
+  security_alerts_security_alerts_resolved_byTousers                       security_alerts[]              @relation("security_alerts_resolved_byTousers")
+  security_alerts_security_alerts_user_idTousers                           security_alerts[]              @relation("security_alerts_user_idTousers")
+  sessions                                                                 sessions[]
+  system_settings                                                          system_settings[]
+  system_settings_history                                                  system_settings_history[]
+  user_roles_user_roles_granted_byTousers                                  user_roles[]                   @relation("user_roles_granted_byTousers")
+  user_roles_user_roles_user_idTousers                                     user_roles[]                   @relation("user_roles_user_idTousers")
+  verification_tokens                                                      verification_tokens[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model verification_tokens {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String    @db.Uuid
+  purpose     String
+  token_hash  Bytes     @unique
+  expires_at  DateTime  @db.Timestamptz(6)
+  consumed_at DateTime? @db.Timestamptz(6)
+  attempts    Int       @default(0) @db.SmallInt
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  users       users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}

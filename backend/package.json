@@ -1,0 +1,46 @@
+{
+  "name": "genzhire-api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "dev": "nest start --watch",
+    "db:migrate": "prisma migrate deploy",
+    "db:pull": "prisma db pull",
+    "db:generate": "prisma generate",
+    "db:seed": "tsx prisma/seed.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "db:setup-role": "tsx prisma/setup-app-role.ts",
+    "db:reset-dev": "tsx prisma/reset-data.ts --yes"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.2.6",
+    "@nestjs/core": "^11.2.6",
+    "@nestjs/jwt": "^11.0.2",
+    "@nestjs/platform-express": "^11.2.6",
+    "@nestjs/throttler": "^6.7.1",
+    "@node-rs/argon2": "^2.2.1",
+    "@prisma/client": "^6.19.3",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.4",
+    "cookie-parser": "^1.4.7",
+    "helmet": "^8.3.0",
+    "pdf-lib": "^1.17.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.24",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.3.0",
+    "@types/node": "^22.20.4",
+    "prisma": "^6.19.3",
+    "tsx": "^4.23.15",
+    "typescript": "5.8"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}

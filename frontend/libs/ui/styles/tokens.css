@@ -1,0 +1,126 @@
+/*
+ * GenZHire design tokens — "Precision Blue" (docs/10-design-system.md).
+ * Three themes: light (candidate), dark (employer/recruiter/admin), brand (hero).
+ * Contrast-corrected values: buttons use --primary-fill (#0A6BDB, 5.07:1 with white);
+ * #1683FF stays the accent; dark muted text is #7D8799 (4.96:1 on cards).
+ */
+:root,
+[data-theme='light'] {
+  --bg: #f7f9fc;
+  --bg-subtle: #eef2f7;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-hover: #f2f5fa;
+  --border: #e4e7ec;
+  --border-strong: #868fa0;
+
+  --text: #101828;
+  --text-secondary: #475467;
+  --text-muted: #667085;
+  --text-disabled: #98a2b3;
+
+  --primary: #0a6bdb;
+  --primary-fill: #0a6bdb;
+  --primary-fill-hover: #0b63ce;
+  --on-primary: #ffffff;
+  --electric: #1683ff;
+  --highlight: #0b63ce;
+  --primary-tint: #eaf3ff;
+
+  --success: #067647;
+  --success-tint: #ecfdf3;
+  --warning: #b54708;
+  --warning-tint: #fffaeb;
+  --danger: #d92d20;
+  --danger-tint: #fef3f2;
+  --danger-fill: #d92d20;
+  --neutral-tint: #f2f4f7;
+
+  --shadow-1: 0 1px 2px rgb(16 24 40 / 0.06);
+  --shadow-2: 0 12px 24px rgb(16 24 40 / 0.12);
+  --overlay: rgb(16 24 40 / 0.45);
+  color-scheme: light;
+}
+
+[data-theme='dark'],
+.theme-dark,
+.theme-brand {
+  --bg: #080b12;
+  --bg-subtle: #0d111a;
+  --surface: #111722;
+  --surface-raised: #151c29;
+  --surface-hover: #182030;
+  --border: #202938;
+  --border-strong: #5d6b82;
+
+  --text: #f5f7fa;
+  --text-secondary: #98a2b3;
+  --text-muted: #7d8799;
+  --text-disabled: #667085;
+
+  --primary: #1683ff;
+  --primary-fill: #0a6bdb;
+  --primary-fill-hover: #0b63ce;
+  --on-primary: #ffffff;
+  --electric: #00a8ff;
+  --highlight: #38b6ff;
+  --primary-tint: rgb(22 131 255 / 0.12);
+
+  --success: #12b76a;
+  --success-tint: rgb(18 183 106 / 0.12);
+  --warning: #f79009;
+  --warning-tint: rgb(247 144 9 / 0.12);
+  --danger: #f04438;
+  --danger-tint: rgb(240 68 56 / 0.12);
+  --danger-fill: #d92d20;
+  --neutral-tint: rgb(152 162 179 / 0.12);
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 8px 24px rgb(0 0 0 / 0.45);
+  --overlay: rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+:root {
+  --font: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --fs-display: clamp(2.25rem, 1.4rem + 3.4vw, 3rem);
+  --fs-h1: 1.875rem;
+  --fs-h2: 1.375rem;
+  --fs-h3: 1.125rem;
+  --fs-body-lg: 1rem;
+  --fs-body: 0.875rem;
+  --fs-caption: 0.75rem;
+  --fs-kpi: 1.75rem;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  --dur-fast: 150ms;
+  --dur-base: 200ms;
+  --dur-slow: 250ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  --sidebar-w: 240px;
+  --topbar-h: 56px;
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+  }
+}
