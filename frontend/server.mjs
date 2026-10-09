@@ -4,6 +4,8 @@
 //   APP      web | employer | recruiter | admin
 //   API_URL  e.g. http://api.railway.internal:3000 (Railway private network)
 //   PORT     set by Railway
+//   WEB_URL, EMPLOYER_URL, RECRUITER_URL, ADMIN_URL  public URLs of the four apps, used for
+//            cross-app links (optional; without them links assume <app>.<domain> subdomains)
 import http from 'node:http';
 import https from 'node:https';
 import { readFile, stat } from 'node:fs/promises';
@@ -22,6 +24,16 @@ const TYPES = {
 };
 const client = API.protocol === 'https:' ? https : http;
 
+const APP_URLS = Object.fromEntries(
+  [['jobseeker', 'WEB_URL'], ['employer', 'EMPLOYER_URL'], ['recruiter', 'RECRUITER_URL'], ['admin', 'ADMIN_URL']]
+    .filter(([, v]) => process.env[v])
+    .map(([k, v]) => [k, process.env[v]]),
+);
+const INDEX_FILE = join(ROOT, 'index.html');
+const indexHtml = readFile(INDEX_FILE, 'utf8').then((html) => Object.keys(APP_URLS).length
+  ? html.replace('</head>', `<script>window.__GENZHIRE_APP_URLS__=${JSON.stringify(APP_URLS).replace(/</g, '\\u003c')}</script></head>`)
+  : html);
+
 function proxy(req, res) {
   const headers = { ...req.headers, host: API.host };
   const p = client.request({ protocol: API.protocol, hostname: API.hostname, port: API.port, path: req.url, method: req.method, headers }, (r) => {
@@ -39,9 +51,9 @@ async function serveStatic(req, res) {
   let rel;
   try { rel = normalize(decodeURIComponent(req.url.split('?')[0])).replace(/^([/\\])+/, ''); } catch { rel = ''; }
   let file = join(ROOT, rel);
-  if (!file.startsWith(ROOT + sep)) file = join(ROOT, 'index.html');
-  try { if (!(await stat(file)).isFile()) throw 0; } catch { file = join(ROOT, 'index.html'); }
-  const isIndex = file.endsWith(`${sep}index.html`);
+  if (!file.startsWith(ROOT + sep)) file = INDEX_FILE;
+  try { if (!(await stat(file)).isFile()) throw 0; } catch { file = INDEX_FILE; }
+  const isIndex = file === INDEX_FILE;
   res.writeHead(200, {
     'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
     // Hashed bundles are immutable; index.html must always be revalidated to pick up new deploys.
@@ -50,7 +62,7 @@ async function serveStatic(req, res) {
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     ...(APP === 'web' ? {} : { 'X-Frame-Options': 'DENY' }),
   });
-  res.end(req.method === 'HEAD' ? undefined : await readFile(file));
+  res.end(req.method === 'HEAD' ? undefined : isIndex ? await indexHtml : await readFile(file));
 }
 
 http.createServer((req, res) => {

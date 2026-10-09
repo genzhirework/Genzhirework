@@ -43,21 +43,33 @@ npm run start:admin                 # :4203
 
 ## Deploy on Railway
 
-Five services from this one repo, each with its own URL. In each service's **Settings**, set the root directory and the config file path. The config path is absolute and does not follow the root directory.
+Five services from this one repo, each with its own URL. Both parts build from a Dockerfile ([`backend/Dockerfile`](backend/Dockerfile) and [`frontend/Dockerfile`](frontend/Dockerfile)). In each service's **Settings**, set the root directory and the config file path. The config path is absolute and does not follow the root directory. Service names matter: the variables below refer to the services by name (`${{api.…}}`, `${{web.…}}`).
 
 | Service | Root directory | Config file | Variables |
 |---|---|---|---|
-| `api` | `/backend` | `/backend/railway.json` | `DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET`, `CURSOR_SECRET`, `NODE_ENV=production`, `PORT=3000`, `COOKIE_SECURE=true`, `REQUIRE_EMAIL_VERIFICATION=false`, `STORAGE_DIR=/data/storage` |
-| `web` | `/frontend` | `/frontend/railway.json` | `APP=web`, `API_URL=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:3000` |
-| `employer` | `/frontend` | `/frontend/railway.json` | `APP=employer`, `API_URL=…` (same) |
-| `recruiter` | `/frontend` | `/frontend/railway.json` | `APP=recruiter`, `API_URL=…` (same) |
-| `admin` | `/frontend` | `/frontend/railway.json` | `APP=admin`, `API_URL=…` (same) |
+| `api` | `/backend` | `/backend/railway.json` | `DATABASE_URL`, `JWT_SECRET`, `CURSOR_SECRET`, `PORT=3000`, `COOKIE_SECURE=true`, `REQUIRE_EMAIL_VERIFICATION=false`, `STORAGE_DIR=/data/storage` |
+| `web` | `/frontend` | `/frontend/railway.json` | `APP=web` + the shared frontend variables |
+| `employer` | `/frontend` | `/frontend/railway.json` | `APP=employer` + the shared frontend variables |
+| `recruiter` | `/frontend` | `/frontend/railway.json` | `APP=recruiter` + the shared frontend variables |
+| `admin` | `/frontend` | `/frontend/railway.json` | `APP=admin` + the shared frontend variables |
+
+Shared frontend variables (Project Settings → Shared Variables, then share them with the four frontend services):
+
+```
+API_URL=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:3000
+WEB_URL=https://${{web.RAILWAY_PUBLIC_DOMAIN}}
+EMPLOYER_URL=https://${{employer.RAILWAY_PUBLIC_DOMAIN}}
+RECRUITER_URL=https://${{recruiter.RAILWAY_PUBLIC_DOMAIN}}
+ADMIN_URL=https://${{admin.RAILWAY_PUBLIC_DOMAIN}}
+```
+
+`*_URL` drive the links between apps (for example "For employers"). Without them, links assume `employer.<domain>`-style subdomains. Once custom domains are on, set them to those domains.
 
 - **API service:**
   - Attach a **volume** mounted at `/data`. Resumes and logos are stored on disk, and they are lost on redeploy without it.
   - Leave the API without a public domain. The frontends reach it over Railway's private network.
 - **Frontend services:** give each one a public domain (Settings → Networking → Generate domain). Each serves its Angular build with [`frontend/server.mjs`](frontend/server.mjs) and proxies `/api` to the API on the same origin. The refresh cookie is `SameSite=Strict`, so the API must not be called cross-origin.
-- **Migrations** are not run on deploy. Run `npm run db:migrate` from a machine that has `DIRECT_URL`.
+- **Migrations** are not run on deploy. Run `npm run db:migrate` from a machine that has `DIRECT_URL`. The API image includes the Prisma CLI, so a Railway shell with `DIRECT_URL` set temporarily also works. Keep `DIRECT_URL` (the schema owner) out of the API's normal variables: at runtime the API only needs the least-privilege `DATABASE_URL`.
 
 ## Database (Supabase)
 
