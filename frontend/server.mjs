@@ -14,7 +14,10 @@ import { fileURLToPath } from 'node:url';
 
 const APP = process.env.APP;
 if (!['web', 'employer', 'recruiter', 'admin'].includes(APP)) throw new Error(`APP must be web|employer|recruiter|admin, got "${APP}"`);
-const API = new URL(process.env.API_URL ?? 'http://localhost:3000');
+let API;
+try { API = new URL(process.env.API_URL ?? 'http://localhost:3000'); } catch {
+  throw new Error(`API_URL "${process.env.API_URL}" is not a valid URL. On Railway, the API service must be named "api" so that \${{api.RAILWAY_PRIVATE_DOMAIN}} resolves.`);
+}
 const PORT = Number(process.env.PORT ?? 8080);
 const ROOT = fileURLToPath(new URL(`./dist/${APP}/browser`, import.meta.url));
 const TYPES = {
